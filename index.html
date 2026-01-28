@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum AI Arena</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; color: #fff; font-family: Arial, sans-serif; }
+        #game-canvas { position: absolute; top: 0; left: 0; }
+        #author-info { position: absolute; bottom: 10px; left: 10px; font-size: 12px; z-index: 10; }
+        #author-info a { color: #0ff; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+    <audio id="bg-music" loop>
+        <source src="https://www.fesliyanstudios.com/play-mp3/6942" type="audio/mpeg"> <!-- Royalty-free sci-fi track: "Digital Love" from Fesliyan Studios -->
+    </audio>
+    <audio id="eat-sound">
+        <source src="https://freesound.org/data/previews/619/619027_5674468-lq.mp3" type="audio/mpeg"> <!-- Royalty-free eat sound from Freesound.org -->
+    </audio>
+    <div id="author-info">Created by Damian Kita - <a href="https://linktr.ee/kitadamian" target="_blank">https://linktr.ee/kitadamian</a></div>
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const bgMusic = document.getElementById('bg-music');
+        const eatSound = document.getElementById('eat-sound');
+
+        // Assets (simple icons from web search results)
+        const assets = {
+            player: new Image(),
+            neuron: new Image(),
+            qubit: new Image(),
+            robot: new Image()
+        };
+        assets.player.src = 'https://images.pexels.com/photos/8849295/pexels-photo-8849295.jpeg'; // AI icon
+        assets.neuron.src = 'https://oli.cmu.edu/repository/webcontent/546043760a0001dc3944c35ab2db3f8f/_u14_nervous/webcontent/Nerv_8.jpg'; // Neuron icon
+        assets.qubit.src = 'https://s3.mordorintelligence.com/rf-plasma-generator-market/rf-plasma-generator-market-1753444728442-major-players.webp'; // Quantum icon (placeholder)
+        assets.robot.src = 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/android.png'; // Robot icon
+
+        // Game constants
+        const PLAYER_START_RADIUS = 20;
+        const FOOD_RADIUS = 10;
+        const ROBOT_RADIUS = 15;
+        const FOOD_COUNT = 50;
+        const ROBOT_COUNT = 5;
+        const MAP_SIZE = 2000; // Large map for scrolling feel
+
+        // Game state
+        let player = { x: MAP_SIZE / 2, y: MAP_SIZE / 2, radius: PLAYER_START_RADIUS, speed: 5 };
+        let foods = [];
+        let robots = [];
+        let mouseX = 0, mouseY = 0;
+        let loadedAssets = 0;
+
+        // Load assets
+        Object.values(assets).forEach(img => {
+            img.onload = () => {
+                loadedAssets++;
+                if (loadedAssets === 4) initGame();
+            };
+        });
+
+        function initGame() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            canvas.addEventListener('mousemove', updateMouse);
+            canvas.addEventListener('touchmove', updateTouch);
+            generateFoods();
+            generateRobots();
+            bgMusic.play();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        function updateMouse(e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        }
+
+        function updateTouch(e) {
+            const touch = e.touches[0];
+            mouseX = touch.clientX;
+            mouseY = touch.clientY;
+        }
+
+        function generateFoods() {
+            for (let i = 0; i < FOOD_COUNT; i++) {
+                foods.push({
+                    x: Math.random() * MAP_SIZE,
+                    y: Math.random() * MAP_SIZE,
+                    type: Math.random() > 0.5 ? 'neuron' : 'qubit',
+                    radius: FOOD_RADIUS
+                });
+            }
+        }
+
+        function generateRobots() {
+            for (let i = 0; i < ROBOT_COUNT; i++) {
+                robots.push({
+                    x: Math.random() * MAP_SIZE,
+                    y: Math.random() * MAP_SIZE,
+                    radius: ROBOT_RADIUS,
+                    dx: (Math.random() - 0.5) * 2,
+                    dy: (Math.random() - 0.5) * 2
+                });
+            }
+        }
+
+        function movePlayer() {
+            const dx = mouseX - canvas.width / 2;
+            const dy = mouseY - canvas.height / 2;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 1) {
+                player.x += (dx / dist) * player.speed;
+                player.y += (dy / dist) * player.speed;
+            }
+            player.x = Math.max(player.radius, Math.min(MAP_SIZE - player.radius, player.x));
+            player.y = Math.max(player.radius, Math.min(MAP_SIZE - player.radius, player.y));
+        }
+
+        function checkCollisions() {
+            foods = foods.filter(food => {
+                const dx = player.x - food.x;
+                const dy = player.y - food.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < player.radius + food.radius) {
+                    player.radius += 1; // Grow
+                    eatSound.play();
+                    return false;
+                }
+                return true;
+            });
+
+            robots.forEach((robot, i) => {
+                const dx = player.x - robot.x;
+                const dy = player.y - robot.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < player.radius + robot.radius) {
+                    if (player.radius > robot.radius) {
+                        player.radius += 2; // Eat robot if larger
+                        eatSound.play();
+                        robots.splice(i, 1);
+                    } else {
+                        alert('Game Over! Robot defeated you.');
+                        location.reload();
+                    }
+                }
+            });
+            if (foods.length < FOOD_COUNT) generateFoods(); // Respawn food
+        }
+
+        function moveRobots() {
+            robots.forEach(robot => {
+                robot.x += robot.dx;
+                robot.y += robot.dy;
+                if (robot.x < 0 || robot.x > MAP_SIZE) robot.dx *= -1;
+                if (robot.y < 0 || robot.y > MAP_SIZE) robot.dy *= -1;
+            });
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const offsetX = canvas.width / 2 - player.x;
+            const offsetY = canvas.height / 2 - player.y;
+
+            // Render foods
+            foods.forEach(food => {
+                ctx.drawImage(assets[food.type], food.x + offsetX - food.radius, food.y + offsetY - food.radius, food.radius * 2, food.radius * 2);
+            });
+
+            // Render robots
+            robots.forEach(robot => {
+                ctx.drawImage(assets.robot, robot.x + offsetX - robot.radius, robot.y + offsetY - robot.radius, robot.radius * 2, robot.radius * 2);
+            });
+
+            // Render player
+            ctx.drawImage(assets.player, canvas.width / 2 - player.radius, canvas.height / 2 - player.radius, player.radius * 2, player.radius * 2);
+        }
+
+        function gameLoop() {
+            movePlayer();
+            moveRobots();
+            checkCollisions();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+    </script>
+</body>
+</html>
